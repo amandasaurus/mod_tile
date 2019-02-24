@@ -1164,6 +1164,7 @@ static int tile_handler_serve(request_rec *r)
     char err_msg[PATH_MAX];
     char id[PATH_MAX];
     char *buf;
+    char *link_header;
     int len;
     int compressed;
     apr_status_t errstatus;
@@ -1244,6 +1245,29 @@ static int tile_handler_serve(request_rec *r)
         ap_set_content_type(r, tile_configs[rdata->layerNumber].mimeType);
         ap_set_content_length(r, len);
         add_expiry(r, cmd);
+
+        int max_xy = (1 << cmd->z)-1;    // Max x or y for this zoom.
+        if (scfg->preloadSize > 1) {
+            int start_x = cmd->x & ~scfg->preloadSize;
+            int last_x = cmd->x | scfg->preloadSize;
+            int start_y = cmd->y & ~scfg->preloadSize;
+            int last_y = cmd->y | scfg->preloadSize;
+            for (int x2 = start_x; x2<=last_x && x2 <= max_xy; x2++) {
+                for (int y2 = start_y; y2<=last_y && y2 <= max_xy; y2++) {
+                    if (!(x2 == cmd->x && y2 == cmd->y)) {
+                        link_header = malloc(8*1024);
+                        snprintf(link_header, 8*1024,
+                            "<%s%d/%d/%d.%s>; rel=preload; as=image",
+                            tile_configs[rdata->layerNumber].baseuri,
+                            cmd->z, x2, y2,
+                            tile_configs[rdata->layerNumber].fileExtension
+                        );
+
+                        apr_table_mergen(r->headers_out, "Link", link_header);
+                    }
+                }
+            }
+        }
 
         gettimeofday(&end,NULL);
         incTimingCounter((end.tv_sec*1000000 + end.tv_usec) - (start.tv_sec*1000000 + start.tv_usec) , cmd->z, r);
@@ -2203,6 +2227,26 @@ static const char *mod_tile_delaypool_render_config(cmd_parms *cmd, void *mconfi
     return NULL;
 }
 
+static const char *mod_tile_preload_size(cmd_parms *cmd, void *mconfig, const char * preload_arg)
+{
+    int preload;
+    tile_server_conf *scfg = ap_get_module_config(cmd->server->module_config, &tile_module);
+
+    if (!strcmp(preload_arg, "0") || !strcmp(preload_arg, "1")) {
+        scfg->preloadSize = 0;
+    } else if (!strcmp(preload_arg, "2")) {
+        scfg->preloadSize = 2;
+    } else if (!strcmp(preload_arg, "4")) {
+        scfg->preloadSize = 4;
+    } else if (!strcmp(preload_arg, "8")) {
+        scfg->preloadSize = 8;
+    } else {
+        return "ModTilePreloadSize only takes 1, 2, 4, 8";
+    }
+
+    return NULL;
+}
+
 static void *create_tile_config(apr_pool_t *p, server_rec *s)
 {
     tile_server_conf * scfg = (tile_server_conf *) apr_pcalloc(p, sizeof(tile_server_conf));
@@ -2236,6 +2280,7 @@ static void *create_tile_config(apr_pool_t *p, server_rec *s)
     scfg->delaypoolRenderSize = AVAILABLE_RENDER_BUCKET_SIZE;
     scfg->delaypoolRenderRate = RENDER_TOPUP_RATE;
     scfg->bulkMode = 0;
+    scfg->preloadSize = 0;
 
 
     return scfg;
@@ -2278,6 +2323,7 @@ static void *merge_tile_config(apr_pool_t *p, void *basev, void *overridesv)
     scfg->delaypoolRenderSize = scfg_over->delaypoolRenderSize;
     scfg->delaypoolRenderRate = scfg_over->delaypoolRenderRate;
     scfg->bulkMode = scfg_over->bulkMode;
+    scfg->preloadSize = scfg_over->preloadSize;
 
     //Construct a table of minimum cache times per zoom level
     for (i = 0; i <= MAX_ZOOM_SERVER; i++) {
@@ -2469,6 +2515,13 @@ static const command_rec tile_cmds[] =
         NULL,                            /* argument to include in call */
         OR_OPTIONS,                      /* where available */
         "On Off - make all requests to renderd with bulk render priority, never mark tiles dirty"  /* directive description */
+    ),
+    AP_INIT_TAKE1(
+        "ModTilePreloadSize",               /* directive name */
+        mod_tile_preload_size,              /* config action routine */
+        NULL,                            /* argument to include in call */
+        OR_OPTIONS,                      /* where available */
+        "0 1 2 4 8 - How many preload/link/http2 server push headers to return"  /* directive description */
     ),
     {NULL}
 };
