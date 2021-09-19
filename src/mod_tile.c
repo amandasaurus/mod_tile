@@ -2482,6 +2482,7 @@ static const char *mod_tile_veryold_threshold_config(cmd_parms *cmd, void *mconf
 static const char *mod_tile_renderd_socket_name_config(cmd_parms *cmd, void *mconfig, const char *renderd_socket_name_string)
 {
 	tile_server_conf *scfg = ap_get_module_config(cmd->server->module_config, &tile_module);
+	printf("Setting renderd_socket_name to %s\n", renderd_socket_name_string);
 	strncpy(scfg->renderd_socket_name, renderd_socket_name_string, PATH_MAX - 1);
 	scfg->renderd_socket_name[PATH_MAX - 1] = 0;
 	return NULL;
@@ -2722,6 +2723,7 @@ static void *create_tile_config(apr_pool_t *p, server_rec *s)
 	scfg->max_load_old = MAX_LOAD_OLD;
 	scfg->max_load_missing = MAX_LOAD_MISSING;
 	scfg->veryold_threshold = VERYOLD_THRESHOLD;
+	printf("created from the hashdefine render socket\n");
 	strncpy(scfg->renderd_socket_name, RENDER_SOCKET, PATH_MAX - 1);
 	scfg->renderd_socket_name[PATH_MAX - 1] = 0;
 	scfg->renderd_socket_port = 0;
@@ -2763,6 +2765,9 @@ static void *merge_tile_config(apr_pool_t *p, void *basev, void *overridesv)
 	scfg->max_load_old = scfg_over->max_load_old;
 	scfg->max_load_missing = scfg_over->max_load_missing;
 	scfg->veryold_threshold = scfg_over->veryold_threshold;
+	printf("mergeing config\n");
+	printf("over %s\n", scfg_over->renderd_socket_name);
+	printf("base %s\n", scfg_base->renderd_socket_name);
 	strncpy(scfg->renderd_socket_name, scfg_over->renderd_socket_name, PATH_MAX - 1);
 	scfg->renderd_socket_name[PATH_MAX - 1] = 0;
 	scfg->renderd_socket_port = scfg_over->renderd_socket_port;
