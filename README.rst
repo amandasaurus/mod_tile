@@ -187,6 +187,13 @@ however ``renderd`` tries to make sure it uses underlying hardware as
 efficiently as possible and scales well on multi core systems. ``renderd``
 also provides built-in features to scale to multi server rendering set-ups.
 
+Statistics and Metrics
+----------------------
+
+Prometheus metrics are exposed at the ``/metrics`` URL. A textual format is
+also available under ``/mod_tile``. Set ``ModTileEnablStats Off`` to disable.
+
+
 Copyright and copyleft
 ----------------------
 
