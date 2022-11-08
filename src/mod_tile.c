@@ -1993,6 +1993,9 @@ static const char *_add_tile_config(cmd_parms *cmd, void *mconfig,
 	if (strlen(name) == 0) {
 		return "ConfigName value must not be null";
 	}
+	if (strlen(name) > (XMLCONFIG_MAX - 1)) {
+		return "ConfigName value is too long";
+	}
 
 	if (hostnames == NULL) {
 		hostnames = malloc(sizeof(char *));
